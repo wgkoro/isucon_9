@@ -190,7 +190,7 @@ module Isucari
 
       response = {
         # キャンペーン実施時には還元率の設定を返す。詳しくはマニュアルを参照のこと。
-        'campaign' => 4,
+        'campaign' => 2,
         # 実装言語を返す
         'language' => 'ruby',
       }
@@ -1262,7 +1262,7 @@ module Isucari
     # getReports
     get '/reports.json' do
       transaction_evidences = db.xquery('SELECT * FROM `transaction_evidences` WHERE `id` > 15007')
-      
+
       response = transaction_evidences.map do |transaction_evidence|
         {
           'id' => transaction_evidence['id'],
