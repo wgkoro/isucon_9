@@ -143,6 +143,7 @@ module Isucari
 
         return if categories.nil?
 
+        puts categories
         list = {}
         categories.each do |category|
           parent_category_name = category['parent_category_name'].empty? ? category['category_name'] : category['parent_category_name']
@@ -163,6 +164,7 @@ module Isucari
         return if seller_ids.nil?
 
         users = db.xquery('SELECT * FROM `users` WHERE `id` IN (?)', seller_ids)
+        puts users
         users.each do |user|
           list[user['id']] = {
               'id' => user['id'],
@@ -265,6 +267,7 @@ module Isucari
       item_id = params['item_id'].to_i
       created_at = params['created_at'].to_i
 
+      puts category_ids
       items = if item_id > 0 && created_at > 0
         db.xquery("SELECT * FROM `items` WHERE `status` IN (?, ?) AND category_id IN (?) AND (`created_at` < ?  OR (`created_at` <= ? AND `id` < ?)) ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", ITEM_STATUS_ON_SALE, ITEM_STATUS_SOLD_OUT, category_ids, Time.at(created_at), Time.at(created_at), item_id)
       else
