@@ -136,7 +136,7 @@ module Isucari
         category_ids = list.map { |l| l['category_id'] }
         categories = db.xquery('SELECT cc.id, cc.parent_id, cc.category_name, pc.id, pc.parent_id, pc.category_name as parent_category_name FROM `categories` cc LEFT OUTER JOIN categories pc ON cc.parent_id = pc.id WHERE cc.id in (?)', category_ids)
 
-        return if categories.empty?
+        return if categories.nil?
 
         list = {}
         categories.each do |category|
@@ -155,7 +155,7 @@ module Isucari
       def get_users_from_list(list)
         seller_ids = list.map { |l| l['seller_id'] }
         list = {}
-        return if seller_ids.empty?
+        return if seller_ids.nil?
 
         users = db.xquery('SELECT * FROM `users` WHERE `id` IN (?)', seller_ids)
         users.each do |user|
