@@ -99,7 +99,7 @@ module Isucari
       def get_users_from_list(data_list)
         user_ids = data_list.map { |data| data['seller_id'] }
 
-        users = db.xquery('SELECT * FROM `users` WHERE `id` in ?', user_ids)
+        users = db.xquery('SELECT * FROM `users` WHERE `id` in (?)', user_ids)
         return if users.nil?
 
         list = {}
