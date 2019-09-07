@@ -91,18 +91,11 @@ module Isucari
       end
 
       def get_category_by_id(category_id)
-        category = db.xquery('SELECT * FROM `categories` WHERE `id` = ?', category_id).first
+        category = db.xquery('SELECT cc.id, cc.parent_id, cc.category_name, pc.id, pc.parent_id, pc.category_name as parent_category_name FROM `categories` cc LEFT OUTER JOIN categories pc ON cc.parent_id = pc.id WHERE cc.id = ?', category_id).first
 
         return if category.nil?
 
-        parent_category_name = if category['parent_id'] != 0
-          parent_category = get_category_by_id(category['parent_id'])
-
-          return if parent_category.nil?
-
-          parent_category['category_name']
-        end
-
+        parent_category_name = category['parent_category_name'].empty? ? category['category_name'] : category['parent_category_name']
         {
           'id' => category['id'],
           'parent_id' => category['parent_id'],
