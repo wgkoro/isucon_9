@@ -95,7 +95,12 @@ module Isucari
 
         return if category.nil?
 
-        parent_category_name = category['parent_category_name'].empty? ? category['category_name'] : category['parent_category_name']
+        if category['parent_category_name'].nil? || category['parent_category_name'] == ''
+          parent_category_name = category['category_name']
+        else
+          parent_category_name = category['parent_category_name']
+        end
+
         {
           'id' => category['id'],
           'parent_id' => category['parent_id'],
