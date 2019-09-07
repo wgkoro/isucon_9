@@ -7,6 +7,8 @@ require 'bcrypt'
 require 'isucari/api'
 
 
+
+
 module Isucari
   class Web < Sinatra::Base
     DEFAULT_PAYMENT_SERVICE_URL = 'http://localhost:5555'
@@ -42,6 +44,7 @@ module Isucari
     BCRYPT_COST = 10
 
     @@categories = nil
+    @@mutex = Mutex.new
 
     configure :development do
       require 'sinatra/reloader'
@@ -95,11 +98,14 @@ module Isucari
 
       def get_category_by_id(category_id)
 
-        category = db.xquery('SELECT * FROM `categories` WHERE `id` = ?', category_id).first
-        # if @@categories.nil?
-        #   @@categories = db.xquery('SELECT * FROM `categories`')
-        # end
-        # category = @@categories.find { |c| c['id'] == category_id }
+        ##category = db.xquery('SELECT * FROM `categories` WHERE `id` = ?', category_id).first
+        category = nil
+        @@mutex.synchronize do
+          if @@categories.nil?
+            @@categories = db.xquery('SELECT * FROM `categories`')
+          end
+          category = @@categories.find { |c| c['id'] == category_id }
+        end
 
         return if category.nil?
 
@@ -230,19 +236,35 @@ module Isucari
       root_category = get_category_by_id(root_category_id)
       halt_with_error 404, 'category not found' if root_category.nil?
 
-      category_ids = db.xquery('SELECT id FROM `categories` WHERE parent_id = ?', root_category['id']).map { |row| row['id'] }
+      # category_ids = db.xquery('SELECT id FROM `categories` WHERE parent_id = ?', root_category['id']).map { |row| row['id'] }
+      target_categories = nil
+      @@mutex.synchronize do
+        target_categories = @@categories.find_all { |c| c['parent_id'] == root_category['id'] }
+      end
+      category_ids = target_categories.map { |row| row['id'] }
 
       item_id = params['item_id'].to_i
       created_at = params['created_at'].to_i
 
+      # items = if item_id > 0 && created_at > 0
+      #   db.xquery("SELECT * FROM `items` WHERE `status` IN (?, ?) AND category_id IN (?) AND (`created_at` < ?  OR (`created_at` <= ? AND `id` < ?)) ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", ITEM_STATUS_ON_SALE, ITEM_STATUS_SOLD_OUT, category_ids, Time.at(created_at), Time.at(created_at), item_id)
+      # else
+      #   db.xquery("SELECT * FROM `items` WHERE `status` IN (?,?) AND category_id IN (?) ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", ITEM_STATUS_ON_SALE, ITEM_STATUS_SOLD_OUT, category_ids)
+      # end
       items = if item_id > 0 && created_at > 0
-        db.xquery("SELECT * FROM `items` WHERE `status` IN (?, ?) AND category_id IN (?) AND (`created_at` < ?  OR (`created_at` <= ? AND `id` < ?)) ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", ITEM_STATUS_ON_SALE, ITEM_STATUS_SOLD_OUT, category_ids, Time.at(created_at), Time.at(created_at), item_id)
+        db.xquery("SELECT i.*, u.`account_name`, u.`num_sell_items` FROM `items` as i left outer join `users` as u on i.`seller_id` = u.`id` WHERE i.`status` IN (?, ?) AND i.category_id IN (?) AND (i.`created_at` < ?  OR (i.`created_at` <= ? AND i.`id` < ?)) ORDER BY i.`created_at` DESC, i.`id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", ITEM_STATUS_ON_SALE, ITEM_STATUS_SOLD_OUT, category_ids, Time.at(created_at), Time.at(created_at), item_id)
       else
-        db.xquery("SELECT * FROM `items` WHERE `status` IN (?,?) AND category_id IN (?) ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", ITEM_STATUS_ON_SALE, ITEM_STATUS_SOLD_OUT, category_ids)
+        db.xquery("SELECT i.*, u.`account_name`, u.`num_sell_items` FROM `items` as i left outer join `users` as u on i.`seller_id` = u.`id` WHERE i.`status` IN (?,?) AND i.category_id IN (?) ORDER BY i.`created_at` DESC, i.`id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", ITEM_STATUS_ON_SALE, ITEM_STATUS_SOLD_OUT, category_ids)
       end
 
       item_simples = items.map do |item|
-        seller = get_user_simple_by_id(item['seller_id'])
+        # seller = get_user_simple_by_id(item['seller_id'])
+        seller = {
+          'id' => item['seller_id'],
+          'account_name' => item['account_name'],
+          'num_sell_items' => item['num_sell_items']
+        }
+
         halt_with_error 404, 'seller not found' if seller.nil?
 
         category = get_category_by_id(item['category_id'])
@@ -414,12 +436,17 @@ module Isucari
       # end
 
       item_simples = items.map do |item|
-        #seller = get_user_simple_by_id(item['seller_id'])
+        # seller = get_user_simple_by_id(item['seller_id'])
         seller = {
           'id' => user_simple['id'],
           'account_name' => user_simple['account_name'],
           'num_sell_items' => user_simple['num_sell_items']
         }
+        # seller = {
+        #   'id' => item['seller_id'],
+        #   'account_name' => item['account_name'],
+        #   'num_sell_items' => item['num_sell_items']
+        # }
 
         halt_with_error 404, 'seller not found' if seller.nil?
 
