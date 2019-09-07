@@ -166,7 +166,7 @@ module Isucari
           }
         end
 
-        users
+        list
       end
     end
 
