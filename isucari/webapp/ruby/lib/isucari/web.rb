@@ -6,6 +6,7 @@ require 'mysql2-cs-bind'
 require 'bcrypt'
 require 'isucari/api'
 
+
 module Isucari
   class Web < Sinatra::Base
     DEFAULT_PAYMENT_SERVICE_URL = 'http://localhost:5555'
@@ -39,6 +40,8 @@ module Isucari
     TRANSACTIONS_PER_PAGE = 10
 
     BCRYPT_COST = 10
+
+    @@categories = nil
 
     configure :development do
       require 'sinatra/reloader'
@@ -91,7 +94,12 @@ module Isucari
       end
 
       def get_category_by_id(category_id)
-        category = db.xquery('SELECT * FROM `categories` WHERE `id` = ?', category_id).first
+
+        ##category = db.xquery('SELECT * FROM `categories` WHERE `id` = ?', category_id).first
+        if @@categories.nil?
+          @@categories = db.xquery('SELECT * FROM `categories`')
+        end
+        category = @@categories.find { |c| c['id'] == category_id }
 
         return if category.nil?
 
@@ -390,16 +398,29 @@ module Isucari
       item_id = params['item_id'].to_i
       created_at = params['created_at'].to_i
 
+      # items = if item_id > 0 && created_at > 0
+      #   # paging
+      #   db.xquery("SELECT * FROM `items` WHERE `seller_id` = ? AND `status` IN (?, ?, ?) AND `created_at` <= ? AND `id` < ? ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", user_simple['id'], ITEM_STATUS_ON_SALE, ITEM_STATUS_TRADING, ITEM_STATUS_SOLD_OUT, Time.at(created_at), item_id)
+      # else
+      #   # 1st page
+      #   db.xquery("SELECT * FROM `items` WHERE `seller_id` = ? AND `status` IN (?, ?, ?) ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", user_simple['id'], ITEM_STATUS_ON_SALE, ITEM_STATUS_TRADING, ITEM_STATUS_SOLD_OUT)
+      # end
       items = if item_id > 0 && created_at > 0
         # paging
-        db.xquery("SELECT * FROM `items` WHERE `seller_id` = ? AND `status` IN (?, ?, ?) AND `created_at` <= ? AND `id` < ? ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", user_simple['id'], ITEM_STATUS_ON_SALE, ITEM_STATUS_TRADING, ITEM_STATUS_SOLD_OUT, Time.at(created_at), item_id)
+        db.xquery("SELECT i.*, u.`account_name`, u.`num_sell_items` FROM `items` as i left outer join `users` as u on i.`seller_id` = u.`id` WHERE `seller_id` = ? AND `status` IN (?, ?, ?) AND `created_at` <= ? AND `id` < ? ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", user_simple['id'], ITEM_STATUS_ON_SALE, ITEM_STATUS_TRADING, ITEM_STATUS_SOLD_OUT, Time.at(created_at), item_id)
       else
         # 1st page
-        db.xquery("SELECT * FROM `items` WHERE `seller_id` = ? AND `status` IN (?, ?, ?) ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", user_simple['id'], ITEM_STATUS_ON_SALE, ITEM_STATUS_TRADING, ITEM_STATUS_SOLD_OUT)
+        db.xquery("SELECT i.*, u.`account_name`, u.`num_sell_items` FROM `items` as i left outer join `users` as u on i.`seller_id` = u.`id` WHERE i.`seller_id` = ? AND i.`status` IN (?, ?, ?) ORDER BY i.`created_at` DESC, i.`id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", user_simple['id'], ITEM_STATUS_ON_SALE, ITEM_STATUS_TRADING, ITEM_STATUS_SOLD_OUT)
       end
 
       item_simples = items.map do |item|
-        seller = get_user_simple_by_id(item['seller_id'])
+        #seller = get_user_simple_by_id(item['seller_id'])
+        seller = {
+          'id' => item['seller_id'],
+          'account_name' => item['account_name'],
+          'num_sell_items' => item['num_sell_items']
+        }
+
         halt_with_error 404, 'seller not found' if seller.nil?
 
         category = get_category_by_id(item['category_id'])
