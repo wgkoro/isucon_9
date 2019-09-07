@@ -345,8 +345,10 @@ module Isucari
         end
       end
 
+      users = get_users_from_list(items)
       item_details = items.map do |item|
-        seller = get_user_simple_by_id(item['seller_id'])
+        # seller = get_user_simple_by_id(item['seller_id'])
+        seller = users[item['seller_id']]
         if seller.nil?
           db.query('ROLLBACK')
           halt_with_error 404, 'seller not found'
