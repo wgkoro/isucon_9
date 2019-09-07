@@ -96,6 +96,24 @@ module Isucari
         }
       end
 
+      def get_users_from_list(data_list)
+        user_ids = data_list.map { |data| data['seller_id'] }
+
+        users = db.xquery('SELECT * FROM `users` WHERE `id` in ?', user_ids)
+        return if users.nil?
+
+        list = {}
+        users.each do |user|
+          list[user['id']] = {
+            'id' => user['id'],
+            'account_name' => user['account_name'],
+            'num_sell_items' => user['num_sell_items']
+          }
+        end
+
+        list
+      end
+
       def get_category_by_id(category_id)
 
         ##category = db.xquery('SELECT * FROM `categories` WHERE `id` = ?', category_id).first
@@ -193,8 +211,9 @@ module Isucari
         db.xquery("SELECT * FROM `items` WHERE `status` IN (?, ?) ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", ITEM_STATUS_ON_SALE, ITEM_STATUS_SOLD_OUT)
       end
 
+      users = get_users_from_list(items)
       item_simples = items.map do |item|
-        seller = get_user_simple_by_id(item['seller_id'])
+        seller = users[item['seller_id']]
         halt_with_error 404, 'seller not found' if seller.nil?
 
         category = get_category_by_id(item['category_id'])
