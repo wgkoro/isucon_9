@@ -131,6 +131,43 @@ module Isucari
       def halt_with_error(status = 500, error = 'unknown')
         halt status, { 'error' => error }.to_json
       end
+
+      def get_categories_from_list(list)
+        category_ids = list.map { |l| l['category_id'] }
+        categories = db.xquery('SELECT cc.id, cc.parent_id, cc.category_name, pc.id, pc.parent_id, pc.category_name as parent_category_name FROM `categories` cc LEFT OUTER JOIN categories pc ON cc.parent_id = pc.id WHERE cc.id in (?)', category_ids)
+
+        return if categories.empty?
+
+        list = {}
+        categories.each do |category|
+          parent_category_name = category['parent_category_name'].empty? ? category['category_name'] : category['parent_category_name']
+          list[category['id']] = {
+              'id' => category['id'],
+              'parent_id' => category['parent_id'],
+              'category_name' => category['category_name'],
+              'parent_category_name' => parent_category_name
+          }
+        end
+
+        list
+      end
+
+      def get_users_from_list(list)
+        seller_ids = list.map { |l| l['seller_id'] }
+        list = {}
+        return if seller_ids.empty?
+
+        users = db.xquery('SELECT * FROM `users` WHERE `id` IN (?)', seller_ids)
+        users.each do |user|
+          list[user['id']] = {
+              'id' => user['id'],
+              'account_name' => user['account_name'],
+              'num_sell_items' => user['num_sell_items']
+          }
+        end
+
+        users
+      end
     end
 
     # API
@@ -172,11 +209,14 @@ module Isucari
         db.xquery("SELECT * FROM `items` WHERE `status` IN (?, ?) ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", ITEM_STATUS_ON_SALE, ITEM_STATUS_SOLD_OUT)
       end
 
+      users = get_users_from_list(items)
+      categories = get_categories_from_list(items)
+
       item_simples = items.map do |item|
-        seller = get_user_simple_by_id(item['seller_id'])
+        seller = users[item['seller_id']]
         halt_with_error 404, 'seller not found' if seller.nil?
 
-        category = get_category_by_id(item['category_id'])
+        category = categories[item['category_id']]
         halt_with_error 404, 'category not found' if category.nil?
 
         {
@@ -226,11 +266,14 @@ module Isucari
         db.xquery("SELECT * FROM `items` WHERE `status` IN (?,?) AND category_id IN (?) ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", ITEM_STATUS_ON_SALE, ITEM_STATUS_SOLD_OUT, category_ids)
       end
 
+      users = get_users_from_list(items)
+      categories = get_categories_from_list(items)
+
       item_simples = items.map do |item|
-        seller = get_user_simple_by_id(item['seller_id'])
+        seller = users[item['seller_id']]
         halt_with_error 404, 'seller not found' if seller.nil?
 
-        category = get_category_by_id(item['category_id'])
+        category = categories[item['category_id']]
         halt_with_error 404, 'category not found' if category.nil?
 
         {
@@ -289,14 +332,17 @@ module Isucari
         end
       end
 
+      users = get_users_from_list(items)
+      categories = get_categories_from_list(items)
+
       item_details = items.map do |item|
-        seller = get_user_simple_by_id(item['seller_id'])
+        seller = users[item['seller_id']]
         if seller.nil?
           db.query('ROLLBACK')
           halt_with_error 404, 'seller not found'
         end
 
-        category = get_category_by_id(item['category_id'])
+        category = categories[item['category_id']]
         if category.nil?
           db.query('ROLLBACK')
           halt_with_error 404, 'category not found'
@@ -391,11 +437,14 @@ module Isucari
         db.xquery("SELECT * FROM `items` WHERE `seller_id` = ? AND `status` IN (?, ?, ?) ORDER BY `created_at` DESC, `id` DESC LIMIT #{ITEMS_PER_PAGE + 1}", user_simple['id'], ITEM_STATUS_ON_SALE, ITEM_STATUS_TRADING, ITEM_STATUS_SOLD_OUT)
       end
 
+      users = get_users_from_list(items)
+      categories = get_categories_from_list(items)
+
       item_simples = items.map do |item|
-        seller = get_user_simple_by_id(item['seller_id'])
+        seller = users[item['seller_id']]
         halt_with_error 404, 'seller not found' if seller.nil?
 
-        category = get_category_by_id(item['category_id'])
+        category = categories[item['category_id']]
         halt_with_error 404, 'category not found' if category.nil?
 
         {
